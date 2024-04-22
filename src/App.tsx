@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { FileUploader } from "react-drag-drop-files";
+import GitHubRibbon from 'react-github-ribbons';
 import SessionViewer from './SessionViewer'
 import './App.css'
 import reactLogo from './assets/react.svg'
@@ -21,6 +22,9 @@ function App() {
   };
   return (
     <>
+      <div>
+        <GitHubRibbon href="https://github.com/kuu/mediatailor-session-viewer/" />
+      </div>
       <div>
         <a href="https://react.dev" target="_blank">
           <img src={reactLogo} className="logo react" alt="React logo" />
