@@ -69,4 +69,11 @@
 label {
   width: 350px;
   box-sizing: border-box;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+textarea {
+  padding-left: 3em;
+  padding-right: 3em;
 }

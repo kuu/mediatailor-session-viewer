@@ -33,13 +33,15 @@ function App() {
         <div>
           <FileUploader handleChange={handleChange} name="file" types={["JSON"]} />
           <p>Export a JSON file from CloudWatch Logs Insights</p>
-          <textarea readOnly={true} rows={8} cols={80} value={`
-            Log group: MediaTailor/ManifestService
-            Query:
-            fields @timestamp, eventType, responseBody
-            | filter sessionId = 'xxxx-xxxx-xxxx'
-            | sort @timestamp asc
-          `} />
+          <textarea readOnly={true} rows={8} cols={60} value={
+`
+Log group: MediaTailor/ManifestService
+Query:
+fields @timestamp, eventType, responseBody
+ | filter sessionId = 'xxxx-xxxx-xxxx'
+ | sort @timestamp asc
+`
+          } />
         </div>
       }
     </>
