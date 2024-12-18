@@ -91,6 +91,25 @@ export default function LogProvider({ children }) {
   );
 }
 
+function swapIfPossible(i: number, logs: CWLog[]): boolean {
+  const curr = logs[i];
+  const next = logs[i + 1];
+  if (
+    (
+      curr.eventType === 'ORIGIN_MANIFEST' && next.eventType === 'GENERATED_MANIFEST'
+      ||
+      curr.eventType === 'GENERATED_MANIFEST' && next.eventType === 'ORIGIN_MANIFEST'
+    )
+    &&
+    Math.abs(new Date(curr['@timestamp']).getTime() - new Date(next['@timestamp']).getTime()) < 100
+  ) {
+    logs[i] = next;
+    logs[i + 1] = curr;
+    return true;
+  }
+  return false;
+}
+
 function formatLogs(logs: CWLog[]): [Log[], number] {
   const sortedLogs = sortLogs(logs);
   const formattedLogs: Log[] = [];
@@ -100,30 +119,46 @@ function formatLogs(logs: CWLog[]): [Log[], number] {
     timestamp: new Date(),
   };
   let maxRows = 0;
-  for (const log of sortedLogs) {
-    if (log.eventType === 'ORIGIN_MANIFEST') {
-      curr.originManifest = log.responseBody;
-      curr.timestamp = new Date(log['@timestamp']);
-    } else if (log.eventType === 'GENERATED_MANIFEST') {
-      curr.generatedManifest = log.responseBody;
-      curr.timestamp = new Date(log['@timestamp']);
-    } else {
+  for (let i = 0; i < sortedLogs.length; i++) {
+    let log = sortedLogs[i];
+    if (log.eventType !== 'ORIGIN_MANIFEST' && log.eventType !== 'GENERATED_MANIFEST') {
       continue;
     }
+    if (
+      (log.eventType === 'ORIGIN_MANIFEST' && curr.originManifest)
+      ||
+      (log.eventType === 'GENERATED_MANIFEST' && curr.generatedManifest)
+    ) {
+      if (swapIfPossible(i, sortedLogs)) {
+        log = sortedLogs[i];
+      } else {
+        curr = flushEntry(curr, formattedLogs);
+      }
+    }
+    if (log.eventType === 'ORIGIN_MANIFEST') {
+      curr.originManifest = log.responseBody;
+    } else {
+      curr.generatedManifest = log.responseBody;
+    }
+    curr.timestamp = new Date(log['@timestamp']);
     maxRows = Math.max(log.responseBody.split('\n').length, maxRows);
     if (curr.originManifest && curr.generatedManifest) {
-      if (formattedLogs.length > 1) {
-        curr = highlightChangedPart(formattedLogs[formattedLogs.length - 1], curr);
-      }
-      formattedLogs.push(curr);
-      curr = {
-        originManifest: '',
-        generatedManifest: '',
-        timestamp: new Date(),
-      };
+      curr = flushEntry(curr, formattedLogs);
     }
   }
   return [formattedLogs, maxRows];
+}
+
+function flushEntry(curr: Log, formattedLogs: Log[]): Log {
+  if (formattedLogs.length > 1) {
+    curr = highlightChangedPart(formattedLogs[formattedLogs.length - 1], curr);
+  }
+  formattedLogs.push(curr);
+  return {
+    originManifest: '',
+    generatedManifest: '',
+    timestamp: new Date(),
+  };
 }
 
 function sortLogs(logs: CWLog[]): CWLog[] {
@@ -139,17 +174,25 @@ function sortLogs(logs: CWLog[]): CWLog[] {
 function highlightChangedPart(prev: Log, curr: Log): Log {
   const [prevOriginManifestObj, prevGeneratedManifestObj] = useCache(prev);
   const [currOriginManifestObj, currGeneratedManifestObj] = useCache(curr);
-  curr.originManifest = highlightDiff(prevOriginManifestObj, currOriginManifestObj);
-  curr.generatedManifest = highlightDiff(prevGeneratedManifestObj, currGeneratedManifestObj);
+  if (prevOriginManifestObj && currOriginManifestObj) {
+    curr.originManifest = highlightDiff(prevOriginManifestObj, currOriginManifestObj);
+  }
+  if (prevGeneratedManifestObj && currGeneratedManifestObj) {
+    curr.generatedManifest = highlightDiff(prevGeneratedManifestObj, currGeneratedManifestObj);
+  }
   return curr;
 }
 
-function useCache(log: Log): types.Playlist[] {
-  const originManifestObj = log.originManifestObj ?? parse(log.originManifest);
-  log.originManifestObj = originManifestObj;
-  const generatedManifestObj = log.generatedManifestObj ?? parse(log.generatedManifest);
-  log.generatedManifestObj = generatedManifestObj;
-  return [originManifestObj, generatedManifestObj];
+function useCache(log: Log): (types.Playlist | undefined)[] {
+  const originManifestObj = log.originManifestObj ?? (log.originManifest && parse(log.originManifest));
+  if (originManifestObj) {
+    log.originManifestObj = originManifestObj;
+  }
+  const generatedManifestObj = log.generatedManifestObj ?? (log.generatedManifest && parse(log.generatedManifest));
+  if (generatedManifestObj) {
+    log.generatedManifestObj = generatedManifestObj;
+  }
+  return [log.originManifestObj, log.generatedManifestObj];
 }
 
 function highlightDiff(prevPlaylist: types.Playlist, currPlaylist: types.Playlist): string {
